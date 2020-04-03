@@ -1,0 +1,44 @@
+version: "3.7"
+services:
+  thumbnail-redis:
+    image: thumbnail/redis:${VERSION}
+    hostname: thumbnail-redis
+    container_name: thumbnail-redis
+    build:
+      context: redis
+    env_file:
+      - env/redis.env
+    volumes:
+      - ../data/redis:/data
+    entrypoint: /docker-entrypoint.sh
+    networks:
+      - thumbnail-network
+  
+  thumbnail-app:
+    image: thumbnail/app:${VERSION}
+    hostname: thumbnail-app
+    container_name: thumbnail-app
+    build:
+      context: app
+    env_file:
+      - env/redis.env
+    environment:
+      - THUMBNAIL_BACKEND_PORT=${PORT}
+      - THUMBNAIL_PATH=${THUMBNAIL_PATH}
+    ports:
+      - ${PORT}:${PORT}
+    volumes:
+      - ..:/app
+      - ../data/images:${THUMBNAIL_PATH}
+    entrypoint: /docker-entrypoint.sh
+    depends_on:
+      - thumbnail-redis
+    links:
+      - thumbnail-redis
+    networks:
+      - thumbnail-network
+
+networks:
+  thumbnail-network:
+      name: thumbnail-network
+      driver: bridge
