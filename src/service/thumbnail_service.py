@@ -1,7 +1,9 @@
+import asyncio
 import errno
 import json
 import logging
 import os
+import threading
 import uuid
 
 from .redis_factory import RedisFactory
@@ -46,22 +48,31 @@ class ThumbnailService:
         redis = self.redis_factory.create_instance()
         
         id = str(uuid.uuid4())
+        self._try_create_folder()
+        size = await self._try_save_file(field, id)
         info = {
             'id': id,
             'filename': field.filename,
-            'path': self.THUMBNAIL_PATH
-        }
-
-        self._try_create_folder()
-        original_size = await self._try_save_file(field, info['id'])
-        file_path = os.path.join(self.THUMBNAIL_PATH, info['id'])
-        self.processor.process(file_path)
-        info['size'] = {
-            'original': original_size,
-            'thumbnail': os.stat(self.processor.build_thumbnail_filename(file_path)).st_size
+            'path': self.THUMBNAIL_PATH,
+            'ready': False,
+            'size': {
+                'original': size
+            }
         }
         redis.set(self._build_key(info['id']), json.dumps(info))
+        self._run_save_file(info)
         return self._build_file_entity(info)
+
+    def _run_save_file(self, info):
+        def _run():
+            file_path = os.path.join(self.THUMBNAIL_PATH, info['id'])
+            self.processor.process(file_path)
+            info['size']['thumbnail'] = os.stat(self.processor.build_thumbnail_filename(file_path)).st_size
+            info['ready'] = True
+            redis = self.redis_factory.create_instance()
+            redis.set(self._build_key(info['id']), json.dumps(info))
+
+        threading.Thread(target=_run).start()
 
     def _try_create_folder(self):
         if not os.path.exists(self.THUMBNAIL_PATH):
@@ -105,15 +116,21 @@ class ThumbnailService:
         key = self._build_key(id)
         data = redis.get(key)
         if data is None:
-            raise FileValidationException('File with id = {} does not exist'.format(id))
+            raise FileValidationException('Thumbnail with id = {} does not exist'.format(id))
         return json.loads(data)
     
     def _build_key(self, filename):
         return 'file-{}'.format(filename)
     
     def _build_file_entity(self, data):
-        return {
+        result = {
             'id': data['id'],
             'filename': data['filename'],
-            'size': data['size']
+            'ready': data['ready'],
+            'size': {
+                'original': data['size']['original']
+            }
         }
+        if data['ready']:
+            result['size']['thumbnail'] = data['size']['thumbnail']
+        return result

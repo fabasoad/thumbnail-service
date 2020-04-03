@@ -46,7 +46,9 @@ async def test_full_lifecycle():
                 assert 'id' in res3
                 assert len(res3['id']) > 0
                 assert res3['filename'] == expected_file_name
+                assert 'size' in res3
                 assert res3['size']['original'] > 0
+                assert 'ready' in res3
 
                 async def delete_handler(res4):
                     assert res4 == res3
@@ -56,7 +58,8 @@ async def test_full_lifecycle():
 
                     await call_get('/api/v1/thumbnail', get_all_handler2)
 
-                if res3['size']['thumbnail'] > 0:
+                if res3['ready']:
+                    assert res3['size']['thumbnail'] > 0
                     await call_delete('/api/v1/thumbnail/' + res3['id'], delete_handler)
                 elif timeout > 0:
                     time.sleep(3)

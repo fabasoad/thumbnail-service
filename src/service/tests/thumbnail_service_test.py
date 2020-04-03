@@ -9,15 +9,16 @@ from ..thumbnail_service import ThumbnailService, FileValidationException
 from ..redis_factory import RedisFactory
 
 from redis import Redis
-from unittest.mock import mock_open, patch, MagicMock
-
-# TODO: save_file and get_file
+from unittest.mock import call, mock_open, patch, MagicMock
 
 def test_get_files():
     expected = {
         "id": str(uuid.uuid4()),
         "filename": 'abc123',
-        "size": 123
+        "ready": False,
+        "size": {
+            "original": 123
+        }
     }
     keys_result = 'def321'
     with patch.object(Redis, 'keys', return_value=keys_result) as mock_keys:
@@ -69,6 +70,7 @@ def test_delete_file_positive(mock_os_remove):
         'path': "/test/",
         'filename': "abcdef",
         'id': test_id,
+        'ready': True,
         'size': {
             'original': 456,
             'thumbnail': 456
@@ -84,12 +86,15 @@ def test_delete_file_positive(mock_os_remove):
             assert service.delete_file(test_id) == {
                 'id': get_result['id'],
                 'filename': get_result['filename'],
+                'ready': get_result['ready'],
                 'size': get_result['size']
             }
             mock_get.assert_called_once_with(expected_key)
             mock_delete.assert_called_once_with(expected_key)
-            mock_os_remove.assert_called_once_with(
-                os.path.join(get_result['path'], get_result['id']))
+            mock_os_remove.assert_has_calls([
+                call(os.path.join(get_result['path'], get_result['id'])),
+                call(os.path.join(get_result['path'], get_result['id']) + '.thumbnail')
+            ])
 
 @patch('os.remove')
 def test_delete_file_negative(mock_os_remove):
