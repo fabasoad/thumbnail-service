@@ -112,3 +112,4 @@ Let's take a look at full lifecycle. Client sends a request to upload the image,
 2. For image storage we can use external storage, like AWS S3 that can store a big amount of data.
 3. High load of requests would be a bit painful for now as we do original image saving in the same thread but based on option `8.2` from previous section we can improve it.
 4. We can add REST tests and Unit tests running to CI job, so we can be sure that nothing is broken after each code change.
+> Made by Yevhen Fabizhevskyi
